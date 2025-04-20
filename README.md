@@ -13,3 +13,4 @@ Changes in the latest version:
 - Provided a user-friendly interface for selecting playlists and tracks.
 - Added unit tests for better maintainability.
 - Updated code to be compatible with Python 3.11.
+- Replaced `appscript` with `pywin32` / `win32com` for COM-based apps to ensure Windows compatibility.

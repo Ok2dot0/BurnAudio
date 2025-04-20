@@ -20,7 +20,7 @@ from datetime import datetime
 from shutil import copyfile
 from multiprocessing import Process, Pool
 
-from appscript import *
+import win32com.client
 
 iTunes = None
 tempfile.tempdir = '/tmp'
@@ -60,55 +60,53 @@ class TrackNotFound(Exception): pass
 def get_app():
   global iTunes
   if not iTunes:
-    iTunes = app('iTunes')
+    iTunes = win32com.client.Dispatch("iTunes.Application")
   return iTunes
 
 def get_playlists():
-  return [x for x in get_app().user_playlists()] 
+  return [x for x in get_app().LibrarySource.Playlists] 
   
 def list_playlists():
-  return [x.name() for x in get_playlists()]
+  return [x.Name for x in get_playlists()]
   
 def search_playlists(name):
   return name.lower() in [pl.lower() for pl in list_playlists()]
   
 def get_playlist(name):
   try:
-    return [pl for pl in get_playlists() if pl.name().lower() == name.lower()][0]
+    return [pl for pl in get_playlists() if pl.Name.lower() == name.lower()][0]
   except:
     pass
     
 def get_tracks(name):
   playlist = get_playlist(name)
-  return playlist.file_tracks()
+  return playlist.Tracks
   
 def list_tracks(name):
-  return [x.name() for x in get_tracks(name)]
+  return [x.Name for x in get_tracks(name)]
   
 def get_track_kind(track):
-  return track.kind()
+  return track.KindAsString
 
 def get_track_title(track):
-  return track.name()
+  return track.Name
 
 def get_track_artist(track):
-  return track.artist()
+  return track.Artist
   
 def get_track_size(track):
-  return track.size()
+  return track.Size
   
 def get_track_num(track):
-  return track.track_number()
+  return track.TrackNumber
   
 def is_track_transcodeable(kind):
   global __encodable_kinds__
-  #if not isinstance(track, basestring):
-  #  kind = get_track_kind(kind)
   return kind.lower() in [x.lower() for x in __encodable_kinds__.keys()]
   
 def get_track_abspath(track):
   try:
-    path = track.location().path
+    path = track.Location
     if not os.path.isfile(path):
       raise AttributeError()
     return path
