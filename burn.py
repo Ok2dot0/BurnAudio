@@ -15,6 +15,7 @@ import subprocess
 import tempfile
 import time
 import argparse
+import logging
 from datetime import datetime
 from shutil import copyfile
 from multiprocessing import Process, Pool
