@@ -12,3 +12,4 @@ Changes in the latest version:
 - Allowed the number of processes in the multiprocessing pool to be configurable.
 - Provided a user-friendly interface for selecting playlists and tracks.
 - Added unit tests for better maintainability.
+- Updated code to be compatible with Python 3.11.

@@ -1,4 +1,4 @@
-#!/usr/bin/env python2.7
+#!/usr/bin/env python3.11
 
 '''
 Based on: http://www.math.columbia.edu/~bayer/Python/iTunes/iTunes.py
@@ -133,13 +133,13 @@ def convert_aac_to_mp3(artist, title, tracknum, location, outdir, quality):
   encode = subprocess.Popen(_encode,
                             stdin=decode.stdout, stdout=subprocess.PIPE)
   output = encode.communicate()[0]
-  print "  .. processed: %s - %s - %s" % (artist, title, tracknum)
+  logging.info("  .. processed: %s - %s - %s" % (artist, title, tracknum))
 
 
 def copy_mp3(artist, title, tracknum, location, outdir, *args, **kwargs):
-  print "  Processing: %s - %s - %s..." % (artist, title, tracknum),
+  logging.info("  Processing: %s - %s - %s..." % (artist, title, tracknum))
   copyfile(location, '%s/%s - %s - %s.mp3' % (outdir, artist, title, tracknum))
-  print "done."
+  logging.info("done.")
 
 if __name__ == '__main__':
   parser = argparse.ArgumentParser(
@@ -163,13 +163,40 @@ if __name__ == '__main__':
     help='The name(s) of the playlist(s) to burn'
   )
 
+  parser.add_argument(
+    '--faad-path',
+    dest='faad_path',
+    default=FAAD,
+    help='Path to the FAAD executable'
+  )
+
+  parser.add_argument(
+    '--lame-path',
+    dest='lame_path',
+    default=LAME,
+    help='Path to the LAME executable'
+  )
+
+  parser.add_argument(
+    '--processes',
+    dest='processes',
+    type=int,
+    default=5,
+    help='Number of processes in the multiprocessing pool'
+  )
+
   args = parser.parse_args()
 
-  print "Gathering information..."
+  FAAD = args.faad_path
+  LAME = args.lame_path
+
+  logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+
+  logging.info("Gathering information...")
   
   for name in args.playlists:
     if not search_playlists(name):
-      print 'Playlist "%s" not found' % name
+      logging.error('Playlist "%s" not found' % name)
     else:
       __track_lists__[name] = [dict(zip(__list_keys__, x)) for x in get_all_tracks_details(name)]
 
@@ -177,39 +204,39 @@ if __name__ == '__main__':
     
     
   burnsize = 0
-  for pl, tracks in __track_lists__.iteritems():
+  for pl, tracks in __track_lists__.items():
     burnsize += sum(track['size'] for track in tracks)
     
   if burnsize > __cd_size__:
-    print '  ERROR: selected tracks will not fit onto a single disk.'
-    print 'terminating.'
+    logging.error('  ERROR: selected tracks will not fit onto a single disk.')
+    logging.error('terminating.')
     raise SystemExit()
   
   estburnsize = int(float(burnsize) * 1.5)
     
-  print "  estimated burn size: %d bytes" % estburnsize
+  logging.info("  estimated burn size: %d bytes" % estburnsize)
   
   if estburnsize > __cd_size__:
-    print '  ERROR: estimating converted files to be larger than disk size.'
-    print 'terminating.'
+    logging.error('  ERROR: estimating converted files to be larger than disk size.')
+    logging.error('terminating.')
     raise SystemExit()
 
-  print "done."
+  logging.info("done.")
 
   outputdir = tempfile.mkdtemp(prefix='EncodeAudio-')
 
-  pool = Pool(processes=5)
-  '''
+  pool = Pool(processes=args.processes)
+  
   try:
-    for playlist, tracks in __track_lists__.iteritems():
+    for playlist, tracks in __track_lists__.items():
 
-      print "Processing playlist: %s" % playlist
+      logging.info("Processing playlist: %s" % playlist)
       playlistdir = outputdir+'/'+playlist
 
-      print "  .. creating tmp dir: %s" % playlistdir
+      logging.info("  .. creating tmp dir: %s" % playlistdir)
       os.mkdir(playlistdir)
 
-      print "  .. processing %d tracks" % len(tracks)
+      logging.info("  .. processing %d tracks" % len(tracks))
       
       for track in tracks:
         if is_track_transcodeable(track['kind']):
@@ -218,10 +245,10 @@ if __name__ == '__main__':
           target = copy_mp3
 
         if not os.path.isfile(track['abspath']):
-          print '> .. file "%s" does not exist' % track['abspath']
+          logging.warning('> .. file "%s" does not exist' % track['abspath'])
           continue
         else:
-          print '  .. adding to pool: %s - %s' % (track['artist'], track['title'])
+          logging.info('  .. adding to pool: %s - %s' % (track['artist'], track['title']))
  
         result = pool.apply_async(target,
                     args=(
@@ -232,14 +259,16 @@ if __name__ == '__main__':
                       playlistdir,
                       __quality__[args.quality[0]]
                       ))
-    print "  .. processing pool, please wait..."
+    logging.info("  .. processing pool, please wait...")
     pool.close()
     pool.join()
 
-  except:
+  except Exception as e:
     pool.terminate()
-    raise SystemExit('Error encountered while processing. Terminating run.')
-  '''
+    logging.error('Error encountered while processing. Terminating run.')
+    logging.error(str(e))
+    raise SystemExit()
+  
 
   diskdir = tempfile.mkdtemp(prefix='BurnAudio-')
   diskname = 'Music-%s' % datetime.utcnow().strftime('%Y%m%d')
@@ -249,16 +278,16 @@ if __name__ == '__main__':
   mkdisk = shlex.split(str('hdiutil makehybrid -iso -joliet-volume-name %(name)s -joliet -o %(diskdir)s/%(name)s.iso %(dir)s' % {'name': diskname, 'dir': outputdir, 'diskdir': diskdir }))
   subprocess.call(mkdisk)
 
-  do_burn = raw_input('Continue to burn CD? (y/N)')
+  do_burn = input('Continue to burn CD? (y/N)')
 
   if do_burn.strip().lower() != 'y':
     raise SystemExit('Exiting at user request.')
 
-  print "Actual burn size: %s bytes" % os.path.getsize('%s/%s.iso'% (diskdir, diskname))
+  logging.info("Actual burn size: %s bytes" % os.path.getsize('%s/%s.iso'% (diskdir, diskname)))
 
   subprocess.call(shlex.split(str("hdiutil burn %s/%s.iso" % (diskdir, diskname))))
 
-  print "\nCompleted.\n"
+  logging.info("\nCompleted.\n")
 
   subprocess.call(['drutil', 'eject'])
 
